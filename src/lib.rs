@@ -1,4 +1,4 @@
-mod arbitrary_util;
+pub mod arbitrary_util;
 mod builder;
 mod seed_phrase;
 

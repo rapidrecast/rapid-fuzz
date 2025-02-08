@@ -1,8 +1,10 @@
 use crate::seed_phrase::SeedPhrase;
 use clap::{Arg, Command};
-use rand::{Rng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaChaRng;
+use std::any::Any;
 use std::marker::PhantomData;
+use std::panic;
 
 pub trait PreSuiteTrait<Suite> {
     fn setup_suite(&self) -> Suite;
@@ -215,25 +217,56 @@ impl<Suite, Test, PreSuite, PreTest, TestProgram, PostTest>
     }
 }
 
-impl<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
-    RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
+impl<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
+    RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
 where
     PreSuite: PreSuiteTrait<Suite>,
-    PreTest: PreTestTrait<Suite, Test>,
-    TestProgram: ProgramTrait<Suite, Test>,
-    PostTest: PostTestTrait<Suite, Test>,
+    PreTest: PreTestTrait<Suite, TestData>,
+    TestProgram: ProgramTrait<Suite, TestData>,
+    PostTest: PostTestTrait<Suite, TestData>,
     PostSuite: PostSuiteTrait<Suite>,
 {
     pub fn run(&self) {
         let args = parse_clap();
         let cases = self.derive_cases(&args);
         let suite = self.pre_suite.setup_suite();
-        for (_iteration, (_seed, rng)) in cases.into_iter().enumerate() {
-            let test_data = self.pre_test.setup_test(&suite);
-            self.test_program.run(&suite, &test_data, rng);
-            self.post_test.teardown_test(&suite, test_data);
+        let mut an_error = None;
+        let mut max_iteration = 0;
+        for (iteration, (seed, rng)) in cases.into_iter().enumerate() {
+            if let Err(e) = self.run_test_safely(&suite, seed, rng) {
+                an_error = Some(e);
+                break;
+            }
+            max_iteration = iteration;
         }
         self.post_suite.teardown_suite(suite);
+        max_iteration += 1;
+        if let Some(e) = an_error {
+            eprintln!("Test failed after {} iterations", max_iteration);
+            panic::resume_unwind(e);
+        } else {
+            println!("Test passed after {} iterations", max_iteration);
+        }
+    }
+
+    fn run_test_safely(
+        &self,
+        suite: &Suite,
+        seed: SeedPhrase,
+        rng: ChaChaRng,
+    ) -> Result<(), Box<dyn Any + Send>> {
+        let test_data = self.pre_test.setup_test(&suite);
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            self.test_program.run(&suite, &test_data, rng);
+        }));
+        if let Err(_) = result {
+            eprintln!("Test panicked for seed: {}", seed.to_string());
+        }
+        self.post_test.teardown_test(&suite, test_data);
+        if let Err(e) = result {
+            return Err(e);
+        }
+        Ok(())
     }
 
     fn derive_cases(&self, args: &DeterministicSimulationArgs) -> Vec<(SeedPhrase, ChaChaRng)> {
@@ -258,13 +291,6 @@ where
             }
         }
     }
-
-    fn run_test(&self, seed: SeedPhrase, mut rng: ChaChaRng) {
-        if rng.next_u32() % 7 == 0 {
-            panic!("Test failed for {}", seed.to_string());
-        }
-        println!("Test passed for {}", seed.to_string());
-    }
 }
 
 pub fn parse_clap() -> DeterministicSimulationArgs {
@@ -282,8 +308,7 @@ pub fn parse_clap() -> DeterministicSimulationArgs {
                 .short('m')
                 .long("max-iterations")
                 .value_name("N")
-                .help("Maximum number of iterations")
-                .default_value("7"),
+                .help("Maximum number of iterations"),
         )
         .get_matches();
 

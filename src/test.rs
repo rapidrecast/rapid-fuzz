@@ -1,4 +1,5 @@
 use rand::RngCore;
+use rapid_fuzz::arbitrary_util::GenerateArbitrary;
 use rapid_fuzz::{ProgramTrait, RapidFuzzBuilder};
 
 pub fn main() {
@@ -14,16 +15,47 @@ pub fn main() {
 pub struct RandomNumbersAndCompareProgram {}
 
 impl<Suite, Test> ProgramTrait<Suite, Test> for RandomNumbersAndCompareProgram {
-    fn run<RNG: RngCore>(&self, suite: &Suite, test: &Test, mut rng: RNG) {
+    fn run<RNG: RngCore>(&self, _suite: &Suite, _test: &Test, mut rng: RNG) {
         let data: (u64, u64) = (
-            u64::generate_arbitrary(&mut rng).arbitrary(),
-            u64::generate_arbitrary(&mut rng).arbitrary(),
+            u64::generate_owned_arbitrary_data(&mut rng)
+                .arbitrary()
+                .unwrap(),
+            u64::generate_owned_arbitrary_data(&mut rng)
+                .arbitrary()
+                .unwrap(),
         );
         let data2: (i32, i32) = (
-            i32::generate_arbitrary(&mut rng).arbitrary(),
-            i32::generate_arbitrary(&mut rng).arbitrary(),
+            i32::generate_owned_arbitrary_data(&mut rng)
+                .arbitrary()
+                .unwrap(),
+            i32::generate_owned_arbitrary_data(&mut rng)
+                .arbitrary()
+                .unwrap(),
         );
-        assert!(data.0 as i64 > data2.0 as i64);
-        assert!(data.1 as i64 > data2.1 as i64);
+        // Define unlucky numbers for each type
+        let unlucky_u64: [u64; 2] = [1331, 1771];
+        let unlucky_i32: [i32; 2] = [1331, 1771];
+
+        // Check if any values are in the unlucky lists
+        assert!(
+            !unlucky_u64.iter().any(|&n| data.0 % n == 0),
+            "Data.0 ({}) was unlucky",
+            data.0,
+        );
+        assert!(
+            !unlucky_u64.iter().any(|&n| data.1 % n == 0),
+            "Data.1 ({}) was unlucky",
+            data.1
+        );
+        assert!(
+            !unlucky_i32.iter().any(|&n| data2.0 % n == 0),
+            "Data2.0 ({}) was unlucky",
+            data2.0
+        );
+        assert!(
+            !unlucky_i32.iter().any(|&n| data2.1 % n == 0),
+            "Data2.1 ({}) was unlucky",
+            data2.1
+        );
     }
 }
