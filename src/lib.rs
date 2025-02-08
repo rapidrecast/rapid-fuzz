@@ -1,4 +1,3 @@
-mod SeedPhrase;
 mod builder;
-#[cfg(test)]
-mod test;
+mod seed_phrase;
+pub use builder::RapidFuzzBuilder;

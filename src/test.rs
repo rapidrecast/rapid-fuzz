@@ -1,7 +1,6 @@
-use crate::builder::RapidFuzzBuilder;
+use rapid_fuzz::RapidFuzzBuilder;
 
-#[test]
-pub fn test() {
+pub fn main() {
     let builder = RapidFuzzBuilder::new()
         .without_pre_suite()
         .without_pre_test()

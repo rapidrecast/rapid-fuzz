@@ -1,10 +1,12 @@
 # Rapid-Fuzz
+
 A crate that can be used to build fuzzing binaries
 
 ## What is fuzzing
 
 Fuzzing is a way of testing software by giving it random data and conditions.
-While the data is random, fuzz tests tend to have a way of displaying the steps that were taken and providing a way of reproducing the test.
+While the data is random, fuzz tests tend to have a way of displaying the steps that were taken and providing a way of
+reproducing the test.
 
 ## Why a new crate for fuzzing in Rust?
 
@@ -15,7 +17,12 @@ You can't easily control memory, for example.
 
 ## What's special about Rapid-Fuzz
 
-Rapid-Fuzz provides a way to conveniently build executable binaries that include everything you would need to make your deterministic tests.
+Rapid-Fuzz provides a way to conveniently build executable binaries that include everything you would need to make your
+deterministic tests.
 
 To build a fuzz test with Rapid-Fuzz, include the crate as a dependency and launch it via the Builder.
 
+## Do you have an example?
+
+Yeah, run the project with `cargo run -- --help`.
+The binary of the project is the test - it tests itself.

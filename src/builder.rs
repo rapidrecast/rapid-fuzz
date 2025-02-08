@@ -1,4 +1,5 @@
-use crate::SeedPhrase::SeedPhrase;
+use crate::seed_phrase::SeedPhrase;
+use clap::{Arg, Command};
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaChaRng;
 
@@ -157,13 +158,13 @@ where
                     .collect::<Vec<_>>()
             }
         };
-        for (iteration, (seed, rng)) in cases.into_iter().enumerate() {
+        for (_iteration, (seed, rng)) in cases.into_iter().enumerate() {
             self.run_test(seed, rng);
         }
     }
 
     fn run_test(&self, seed: SeedPhrase, mut rng: ChaChaRng) {
-        if rng.next_u32() % 5 == 0 {
+        if rng.next_u32() % 7 == 0 {
             panic!("Test failed for {}", seed.to_string());
         }
         println!("Test passed for {}", seed.to_string());
@@ -171,15 +172,35 @@ where
 }
 
 pub fn parse_clap() -> DeterministicSimulationArgs {
-    // TODO
+    let matches = Command::new("Deterministic Simulation")
+        .about("Runs a deterministic simulation with optional parameters")
+        .arg(
+            Arg::new("seed")
+                .short('s')
+                .long("seed")
+                .value_name("HEX")
+                .help("Hex-encoded 64-character seed phrase"),
+        )
+        .arg(
+            Arg::new("max_iterations")
+                .short('m')
+                .long("max-iterations")
+                .value_name("N")
+                .help("Maximum number of iterations")
+                .default_value("7"),
+        )
+        .get_matches();
+
+    let seed = matches
+        .get_one::<String>("seed")
+        .map(|s| SeedPhrase::parse(s).unwrap());
+    let max_iterations = matches
+        .get_one::<String>(&"max_iterations")
+        .and_then(|n| n.parse::<u128>().ok());
+
     DeterministicSimulationArgs {
-        // If you want a failing test (the first u32 is %5 == 0), use this seed:
-        // seed: Some(
-        //     SeedPhrase::parse("1b25ed3ce3f95840b72680799128e3c3f00d9d987787909a8bf879cccf271d92")
-        //         .unwrap(),
-        // ),
-        seed: None,
-        max_iterations: Some(7),
+        seed,
+        max_iterations,
     }
 }
 

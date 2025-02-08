@@ -53,7 +53,7 @@ impl SeedPhrase {
 
 #[cfg(test)]
 mod test {
-    use crate::SeedPhrase::SeedPhrase;
+    use crate::seed_phrase::SeedPhrase;
 
     #[test]
     fn test_parse() {
