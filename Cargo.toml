@@ -11,6 +11,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+arbitrary = "1.4.1"
 clap = { version = "4.5.28", features = ["default"] }
 deterministic = "0.1.2"
 rand = { version = "0.9.0", features = [] }
