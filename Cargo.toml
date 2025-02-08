@@ -5,6 +5,9 @@ name = "rapid_fuzz"
 name = "rapid-fuzz"
 path = "src/test.rs"
 
+[profile.release]
+debug = true  # Include debug symbols in release build
+
 [package]
 name = "rapid-fuzz"
 version = "0.1.0"
