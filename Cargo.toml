@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = "4.5.28"
+deterministic = "0.1.2"
+rand = { version = "0.9.0", features = [] }
+rand_chacha = "0.9.0"
