@@ -1,7 +1,7 @@
 use crate::seed_phrase::SeedPhrase;
 use clap::{Arg, Command};
 use rand::{RngCore, SeedableRng};
-use rand_chacha::ChaChaRng;
+use rand_chacha::{ChaCha20Rng, ChaChaRng};
 use std::any::Any;
 use std::marker::PhantomData;
 use std::panic;
@@ -10,20 +10,20 @@ pub trait PreSuiteTrait<Suite> {
     fn setup_suite(&self) -> Suite;
 }
 
-pub trait PreTestTrait<Suite, Test> {
-    fn setup_test(&self, suite: &Suite) -> Test;
+pub trait PreTestTrait<Suite, TestData> {
+    fn setup_test(&self, suite: &Suite, rng: &mut ChaCha20Rng) -> TestData;
 }
 
-pub trait PostTestTrait<Suite, Test> {
-    fn teardown_test(&self, suite: &Suite, test: Test);
+pub trait PostTestTrait<Suite, TestData> {
+    fn teardown_test(&self, suite: &Suite, test: TestData);
 }
 
 pub trait PostSuiteTrait<Suite> {
     fn teardown_suite(&self, suite: Suite);
 }
 
-pub trait ProgramTrait<Suite, Test> {
-    fn run<RNG: RngCore>(&self, suite: &Suite, test: &Test, rng: RNG);
+pub trait ProgramTrait<Suite, TestData> {
+    fn run<RNG: RngCore>(&self, suite: &Suite, test: &TestData, rng: RNG);
 }
 
 pub struct NoOpSetup;
@@ -32,19 +32,19 @@ impl PreSuiteTrait<()> for NoOpSetup {
     fn setup_suite(&self) -> () {}
 }
 impl<Suite> PreTestTrait<Suite, ()> for NoOpSetup {
-    fn setup_test(&self, _suite: &Suite) -> () {}
+    fn setup_test(&self, _suite: &Suite, _rng: &mut ChaCha20Rng) -> () {}
 }
 
-impl<Suite> PostTestTrait<Suite, ()> for NoOpSetup {
-    fn teardown_test(&self, _suite: &Suite, _test: ()) {}
+impl<Suite, TestData> PostTestTrait<Suite, TestData> for NoOpSetup {
+    fn teardown_test(&self, _suite: &Suite, _test: TestData) {}
 }
-impl PostSuiteTrait<()> for NoOpSetup {
-    fn teardown_suite(&self, _suite: ()) {}
+impl<Suite> PostSuiteTrait<Suite> for NoOpSetup {
+    fn teardown_suite(&self, _suite: Suite) {}
 }
 
-pub struct RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite> {
+pub struct RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite> {
     suite: PhantomData<Suite>,
-    test: PhantomData<Test>,
+    test: PhantomData<TestData>,
     pre_suite: PreSuite,
     pre_test: PreTest,
     test_program: TestProgram,
@@ -66,13 +66,14 @@ impl RapidFuzzBuilder<(), (), (), (), (), (), ()> {
     }
 }
 
-impl<Suite, Test, PreTest, TestProgram, PostTest, PostSuite>
-    RapidFuzzBuilder<Suite, Test, (), PreTest, TestProgram, PostTest, PostSuite>
+impl<Suite, TestData, PreTest, TestProgram, PostTest, PostSuite>
+    RapidFuzzBuilder<Suite, TestData, (), PreTest, TestProgram, PostTest, PostSuite>
 {
     pub fn with_pre_suite<PreSuite: PreSuiteTrait<Suite>>(
         self,
         pre_suite: PreSuite,
-    ) -> RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite> {
+    ) -> RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
+    {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -86,7 +87,7 @@ impl<Suite, Test, PreTest, TestProgram, PostTest, PostSuite>
 
     pub fn without_pre_suite(
         self,
-    ) -> RapidFuzzBuilder<(), Test, NoOpSetup, PreTest, TestProgram, PostTest, PostSuite> {
+    ) -> RapidFuzzBuilder<(), TestData, NoOpSetup, PreTest, TestProgram, PostTest, PostSuite> {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -99,13 +100,14 @@ impl<Suite, Test, PreTest, TestProgram, PostTest, PostSuite>
     }
 }
 
-impl<Suite, Test, PreSuite, TestProgram, PostTest, PostSuite>
-    RapidFuzzBuilder<Suite, Test, PreSuite, (), TestProgram, PostTest, PostSuite>
+impl<Suite, PreSuite, TestProgram, PostTest, PostSuite>
+    RapidFuzzBuilder<Suite, (), PreSuite, (), TestProgram, PostTest, PostSuite>
 {
-    pub fn with_pre_test<PreTest: PreTestTrait<Suite, Test>>(
+    pub fn with_pre_test<TestData, PreTest: PreTestTrait<Suite, TestData>>(
         self,
         pre_test: PreTest,
-    ) -> RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite> {
+    ) -> RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
+    {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -132,13 +134,14 @@ impl<Suite, Test, PreSuite, TestProgram, PostTest, PostSuite>
     }
 }
 
-impl<Suite, Test, PreSuite, PreTest, PostTest, PostSuite>
-    RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, (), PostTest, PostSuite>
+impl<Suite, TestData, PreSuite, PreTest, PostTest, PostSuite>
+    RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, (), PostTest, PostSuite>
 {
-    pub fn with_test_program<TestProgram: ProgramTrait<Suite, Test>>(
+    pub fn with_test_program<TestProgram: ProgramTrait<Suite, TestData>>(
         self,
         test_program: TestProgram,
-    ) -> RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite> {
+    ) -> RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
+    {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -151,13 +154,14 @@ impl<Suite, Test, PreSuite, PreTest, PostTest, PostSuite>
     }
 }
 
-impl<Suite, Test, PreSuite, PreTest, TestProgram, PostSuite>
-    RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, (), PostSuite>
+impl<Suite, TestData, PreSuite, PreTest, TestProgram, PostSuite>
+    RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, (), PostSuite>
 {
-    pub fn with_post_test<PostTest: PostTestTrait<Suite, Test>>(
+    pub fn with_post_test<PostTest: PostTestTrait<Suite, TestData>>(
         self,
         post_test: PostTest,
-    ) -> RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite> {
+    ) -> RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
+    {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -171,7 +175,8 @@ impl<Suite, Test, PreSuite, PreTest, TestProgram, PostSuite>
 
     pub fn without_post_test(
         self,
-    ) -> RapidFuzzBuilder<Suite, (), PreSuite, PreTest, TestProgram, NoOpSetup, PostSuite> {
+    ) -> RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, NoOpSetup, PostSuite>
+    {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -184,13 +189,14 @@ impl<Suite, Test, PreSuite, PreTest, TestProgram, PostSuite>
     }
 }
 
-impl<Suite, Test, PreSuite, PreTest, TestProgram, PostTest>
-    RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, ()>
+impl<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest>
+    RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, ()>
 {
     pub fn with_post_suite<PostSuite: PostSuiteTrait<Suite>>(
         self,
         post_suite: PostSuite,
-    ) -> RapidFuzzBuilder<Suite, Test, PreSuite, PreTest, TestProgram, PostTest, PostSuite> {
+    ) -> RapidFuzzBuilder<Suite, TestData, PreSuite, PreTest, TestProgram, PostTest, PostSuite>
+    {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -204,7 +210,7 @@ impl<Suite, Test, PreSuite, PreTest, TestProgram, PostTest>
 
     pub fn without_post_suite(
         self,
-    ) -> RapidFuzzBuilder<(), Test, PreSuite, PreTest, TestProgram, PostTest, NoOpSetup> {
+    ) -> RapidFuzzBuilder<(), TestData, PreSuite, PreTest, TestProgram, PostTest, NoOpSetup> {
         RapidFuzzBuilder {
             suite: PhantomData,
             test: PhantomData,
@@ -253,9 +259,9 @@ where
         &self,
         suite: &Suite,
         seed: SeedPhrase,
-        rng: ChaChaRng,
+        mut rng: ChaCha20Rng,
     ) -> Result<(), Box<dyn Any + Send>> {
-        let test_data = self.pre_test.setup_test(&suite);
+        let test_data = self.pre_test.setup_test(&suite, &mut rng);
         let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             self.test_program.run(&suite, &test_data, rng);
         }));
@@ -272,7 +278,7 @@ where
     fn derive_cases(&self, args: &DeterministicSimulationArgs) -> Vec<(SeedPhrase, ChaChaRng)> {
         match args.seed {
             Some(seed) => (0..=0)
-                .map(|_| (seed, ChaChaRng::from_seed(seed.into_bytes())))
+                .map(|_| (seed, ChaCha20Rng::from_seed(seed.into_bytes())))
                 .collect::<Vec<_>>(),
             None => {
                 let run_range = match args.max_iterations {
@@ -284,7 +290,7 @@ where
                         let seed = rand::random::<[u8; 32]>();
                         (
                             SeedPhrase::from_bytes(&seed).unwrap(),
-                            ChaChaRng::from_seed(seed),
+                            ChaCha20Rng::from_seed(seed),
                         )
                     })
                     .collect::<Vec<_>>()
